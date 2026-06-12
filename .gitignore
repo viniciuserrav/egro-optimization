@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+*.superseded
+check.json
+out.json
+.DS_Store
