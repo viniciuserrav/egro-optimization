@@ -210,11 +210,31 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--problem', type=str, default='AR1_spring',
                     help='one of AR1_spring, AR2_vessel, AR3_welded, AR4_reducer')
-    ap.add_argument('--n-runs',  type=int, default=30)
-    ap.add_argument('--max-fes', type=int, default=10_000,
-                    help='FEs per dimension (so total = max_fes * d)')
+    # Per-problem defaults: AR4 (speed reducer, d=7) needs more FE than
+    # the others under unit-cube mapping.
+    PER_PROBLEM_FES = {
+        'AR1_spring':  10_000,
+        'AR2_vessel':  10_000,
+        'AR3_welded':  10_000,
+        'AR4_reducer': 35_000,
+    }
+    PER_PROBLEM_RUNS = {
+        'AR1_spring':  30,
+        'AR2_vessel':  30,
+        'AR3_welded':  30,
+        'AR4_reducer':  60,
+    }
+    ap.add_argument('--n-runs',  type=int, default=None,
+                    help='overrides the per-problem default')
+    ap.add_argument('--max-fes', type=int, default=None,
+                    help='FEs per dimension (defaults to per-problem value)')
     ap.add_argument('--out',     type=str, default='')
     args = ap.parse_args()
+
+    if args.n_runs is None:
+        args.n_runs = PER_PROBLEM_RUNS[args.problem]
+    if args.max_fes is None:
+        args.max_fes = PER_PROBLEM_FES[args.problem]
 
     probs = {p.slug: p for p in ep.all_problems()}
     problem = probs[args.problem]
