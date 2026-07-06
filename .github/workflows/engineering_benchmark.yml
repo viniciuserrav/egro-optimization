@@ -1,0 +1,105 @@
+name: engineering_benchmark
+
+# Run the 7-algorithm competition on the four classical mechanical-design
+# engineering problems (Arora textbook suite).  One job per problem; jobs
+# run in parallel and upload their result JSONs as artifacts.  The
+# `merge_engineering` job downloads all artifacts and produces a single
+# consolidated JSON + a tiny text summary of which algorithm "wins" each
+# problem.
+
+on:
+  workflow_dispatch:        # manual trigger (avoids surprise runs)
+
+jobs:
+  competition:
+    name: "competition/${{ matrix.problem }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 90      # each problem fits comfortably < 1h on the free runner
+    strategy:
+      fail-fast: false
+      matrix:
+        problem: [AR1_spring, AR2_vessel, AR3_welded, AR4_reducer]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy scipy cma opfunu
+
+      - name: Run the 7-algorithm competition on ${{ matrix.problem }}
+        env:
+          OMP_NUM_THREADS: '1'
+          OPENBLAS_NUM_THREADS: '1'
+          MKL_NUM_THREADS: '1'
+          PYTHONHASHSEED: '0'
+        run: |
+          mkdir -p results
+          python code/engineering_competition.py \
+              --problem ${{ matrix.problem }} \
+              --n-runs  30 \
+              --max-fes 10000 \
+              --out      results/engineering_${{ matrix.problem }}.json
+
+      - name: Upload result artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: engineering_${{ matrix.problem }}
+          path: results/engineering_${{ matrix.problem }}.json
+
+  merge_engineering:
+    name: merge & summarise
+    needs: competition
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: engineering_*
+          path: artifacts
+          merge-multiple: true
+
+      - name: Merge into a single JSON
+        run: |
+          python - <<'PY'
+          import json, glob, os
+          merged = {}
+          for path in sorted(glob.glob('artifacts/engineering_*.json')):
+              with open(path) as fh:
+                  d = json.load(fh)
+              # Strip out per-run arrays to keep the artifact small (these
+              # raw arrays are already in the per-problem upload above).
+              keep = {}
+              for k, v in d.items():
+                  if k.startswith('__meta__'): keep[k] = v
+                  else: keep[k] = {kk: v[kk] if kk != 'errors' else v['mean']
+                                     for kk in v}
+              merged[os.path.basename(path).replace('.json','')] = keep
+          with open('artifacts/engineering_MERGED.json', 'w') as fh:
+              json.dump(merged, fh, indent=2)
+          print('Wrote engineering_MERGED.json')
+          PY
+
+      - name: Print per-problem rankings
+        run: |
+          python - <<'PY'
+          import json
+          d = json.load(open('artifacts/engineering_MERGED.json'))
+          for prob, summary in d.items():
+              print(f'\n=== {prob} ===')
+              sorted_alg = sorted([(a, s.get('mean', float("inf")))
+                                   for a, s in summary.items()
+                                   if a != '__meta__'])
+              for a, m in sorted_alg:
+                  print(f'  {a:10s}  mean_best_feasible = {m:.4e}')
+          PY
+
+      - name: Upload the merged artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: engineering_MERGED
+          path: artifacts/engineering_MERGED.json
