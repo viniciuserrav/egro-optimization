@@ -25,6 +25,7 @@ competition artifacts.
 import argparse
 import json
 import os
+import sys
 import time
 import warnings
 
@@ -58,7 +59,6 @@ def penalty_objective(problem):
 # do NOT maintain a second copy of the algorithm.  This is the same class
 # the published paper uses; we simply swap the unpenalty objective for a
 # penalty-augmented one. ───────────────────────────────────────────────────
-import sys as _sys
 import importlib.util as _ilu
 
 egrocma_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
@@ -71,7 +71,7 @@ if not os.path.exists(egrocma_path):
                                 'egro_cma_competition.py')
 spec = _ilu.spec_from_file_location('egro_cma_competition', egrocma_path)
 mod = _ilu.module_from_spec(spec)
-_sys.modules['egro_cma_competition'] = mod
+sys.modules['egro_cma_competition'] = mod
 spec.loader.exec_module(mod)
 
 # Pull out the six competitor classes (EGRO-CMA, CMA-ES, L-SHADE, DE, PSO,
