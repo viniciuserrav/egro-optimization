@@ -106,16 +106,21 @@ class _Evaluator:
         self.fun_count = 0
 
     def eval(self, x):
+        # x lies in [0, 1]^d (each algorithm runs in unit cube).  We
+        # un-map to the actual problem box, evaluate, then return the
+        # *penalty-augmented* fitness IN THE UNIT CUBE.  Algorithms do not
+        # observe the un-mapped position at any other point.
         self.fun_count += 1
-        # Re-evaluate the original (unpenalized) objective just to keep the
-        # best-feasible record.  This costs one FE per call but is mandatory
-        # because the algorithm sees only `self.pen_f(x)`.
-        f_raw, cons = self.problem.evaluate(np.clip(np.asarray(x, dtype=float),
-                                                    *[self._bounds()]))
+        xu = np.asarray(x, dtype=float)
+        lo, hi = self._bounds()
+        # clip into [0,1] to defend against FP drift
+        xu = np.clip(xu, 0.0, 1.0)
+        x_box = lo + (hi - lo) * xu
+        f_raw, cons = self.problem.evaluate(x_box)
         v = ep.violation(cons)
         if v <= 0 and f_raw < self.best_feasible_obj:
             self.best_feasible_obj = f_raw
-        return self.pen_f(x)
+        return self.pen_f(xu)
 
     def _bounds(self):
         b = self.problem.bounds
@@ -148,12 +153,9 @@ def run_problem(problem, n_runs=30, max_fes_per_d=10_000, base_seed=0, verbose=T
             t0 = time.time()
             ev = _Evaluator(problem)
 
-            # Construct the algorithm with the penalty-augmented objective and
-            # the bounds from the problem.
-            bounds_lo = np.array([bi[0] for bi in problem.bounds], dtype=float)
-            bounds_hi = np.array([bi[1] for bi in problem.bounds], dtype=float)
-
-            kwargs = dict(func=ev.eval, lb=bounds_lo, ub=bounds_hi, dim=d,
+            # The algorithms assume scalar bounds; we operate them on the
+            # unit cube [0, 1]^d and un-map inside the evaluator.  See _Evaluator.
+            kwargs = dict(func=ev.eval, lb=0.0, ub=1.0, dim=d,
                           max_evals=max_evals, seed=base_seed + run)
             if algo_name == 'EGRO-CMA':
                 kwargs['use_echo'] = True
