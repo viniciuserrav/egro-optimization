@@ -212,19 +212,21 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--problem', type=str, default='AR1_spring',
                     help='one of AR1_spring, AR2_vessel, AR3_welded, AR4_reducer')
-    # Per-problem defaults: AR4 (speed reducer, d=7) needs more FE than
-    # the others under unit-cube mapping.
+# Per-problem defaults.  AR1/AR2/AR3 use the standard CEC 10^4 FE/d
+    # budget.  AR4 (speed reducer, d=7) also runs at 10^4 FE/d; the larger
+    # 3.5*10^4 FE/d budget we tried earlier exceeded the GitHub Actions
+    # 90-minute job timeout.
     PER_PROBLEM_FES = {
         'AR1_spring':  10_000,
         'AR2_vessel':  10_000,
         'AR3_welded':  10_000,
-        'AR4_reducer': 35_000,
+        'AR4_reducer': 10_000,
     }
     PER_PROBLEM_RUNS = {
         'AR1_spring':  30,
         'AR2_vessel':  30,
         'AR3_welded':  30,
-        'AR4_reducer':  60,
+        'AR4_reducer': 30,
     }
     ap.add_argument('--n-runs',  type=int, default=None,
                     help='overrides the per-problem default')
