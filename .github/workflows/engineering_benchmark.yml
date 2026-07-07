@@ -40,10 +40,10 @@ jobs:
           PYTHONHASHSEED: '0'
         run: |
           mkdir -p results
+          # Per-problem budgets are encoded inside engineering_competition.py
+          # (AR1/AR2/AR3: 30 runs @ 10^4 FE/d, AR4: 60 runs @ 3.5*10^4 FE/d).
           python code/engineering_competition.py \
               --problem ${{ matrix.problem }} \
-              --n-runs  30 \
-              --max-fes 10000 \
               --out      results/engineering_${{ matrix.problem }}.json
 
       - name: Upload result artifact

@@ -107,9 +107,11 @@ class _Evaluator:
 
     def eval(self, x):
         # x lies in [0, 1]^d (each algorithm runs in unit cube).  We
-        # un-map to the actual problem box, evaluate, then return the
-        # *penalty-augmented* fitness IN THE UNIT CUBE.  Algorithms do not
-        # observe the un-mapped position at any other point.
+        # un-map to the actual problem box, evaluate, and return the
+        # *penalty-augmented* fitness at the PHYSICAL point x_box.  The
+        # penalty must be evaluated at the same point where the constraints
+        # are evaluated; otherwise the optimizer is guided by penalties that
+        # do not correspond to the actual problem geometry.
         self.fun_count += 1
         xu = np.asarray(x, dtype=float)
         lo, hi = self._bounds()
@@ -120,7 +122,7 @@ class _Evaluator:
         v = ep.violation(cons)
         if v <= 0 and f_raw < self.best_feasible_obj:
             self.best_feasible_obj = f_raw
-        return self.pen_f(xu)
+        return self.pen_f(x_box)
 
     def _bounds(self):
         b = self.problem.bounds
