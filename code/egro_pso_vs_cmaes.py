@@ -363,7 +363,6 @@ def main():
     print('=== SUMMARY d=%d ===' % dim)
     print('PSO wins: %d  |  CMA wins: %d  |  ties: %d' % (pso_wins, cma_wins, ties))
 
-
     print('Saved to', out)
 
 
