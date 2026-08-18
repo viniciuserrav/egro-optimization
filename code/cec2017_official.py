@@ -139,6 +139,20 @@ def run_dim(dim, fns, algos, n_runs, budget, workers, outdir):
                 with open(os.path.join(outdir, 'progress_d%d.txt' % dim),
                           'w') as fh:
                     fh.write(msg + '\n')
+    # Fail loudly on infrastructure errors: a green job must mean real data.
+    # ('non-finite' flags are legitimate benchmark defects, e.g. official
+    # F30 at d=10, and do not count as failures.)
+    bad = {}
+    for fid in fns:
+        for algo in algos:
+            for f in data['F%d' % fid][algo]['flags']:
+                if f and f != 'non-finite':
+                    bad[f] = bad.get(f, 0) + 1
+    if bad:
+        for f, n in sorted(bad.items(), key=lambda x: -x[1])[:3]:
+            print('[d=%d] TASK FAILURES %dx: %s' % (dim, n, f), flush=True)
+        raise SystemExit('[d=%d] aborting: %d failed tasks indicate a broken '
+                         'environment' % (dim, sum(bad.values())))
     print('[d=%d] complete -> %s' % (dim, out), flush=True)
 
 
