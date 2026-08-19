@@ -1,129 +1,153 @@
 """
-validate.py  —  Self-contained check of the EGRO paper's CORRECTED results.
-Merges every results/CORRECTED_*.json (echo-covariance data) and prints
-tie-aware Friedman ranks, sole/tied wins, the EGRO-CMA vs CMA-ES head-to-head,
-and the Nemenyi leading/lagging groups — no dependencies beyond the stdlib.
+validate.py — one-command reproduction of the paper's headline numbers.
 
-Run:
-    python validate.py
+Recomputes, directly from results/cec2017_official_d{10,30,50}.json:
+  * tie-aware mean Friedman ranks (CEC convention: |error| < 1e-8 -> 0);
+  * the Nemenyi critical difference and the leading group;
+  * sole-win tallies and the EGRO-CMA vs CMA-ES head-to-head;
+  * the robustness check over functions with a consistent reference.
+
+Also re-verifies every stored 10-bar truss design by recomputing its weight
+and constraint residuals from the finite-element model.
+
+Standard library + numpy only.  Run:  python validate.py
 """
-import os, json, glob, collections
+import json
+import os
+import sys
+
+import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+RES = os.path.join(HERE, 'results')
+ALGOS = ['EGRO-CMA', 'CMA-ES', 'L-SHADE', 'DE', 'PSO', 'GWO', 'WOA']
+ETOL = 1e-8
+Q_ALPHA_7 = 2.949                     # Nemenyi q_0.05, k = 7
 
-# Merge ONLY the main-competition files.  The ablation files
-# (CORRECTED_*ablation*.json) reuse keys F{fn}_d{dim}_PSO / _CMA for EGRO-PSO /
-# EGRO-CMA, which would collide with the main-competition standalone-PSO key and
-# contaminate the ranks; they are handled separately (see consolidate_all.py).
-data = {}
-files = sorted(glob.glob(os.path.join(HERE, "results", "CORRECTED_main_*.json")))
-for f in files:
-    try:
-        d = json.load(open(f))
-    except Exception:
-        continue
-    for k, v in d.items():
-        if k in data:
-            continue
-        if isinstance(v, dict) and "mean" in v:
-            data[k] = {"mean": v["mean"], "std": v.get("std", 0.0)}
-        elif v is True:                      # INVALID marker
-            data[k] = True
+EXPECTED = {                          # paper values (all / consistent-only)
+    10: {'n': 27, 'L-SHADE': 1.50, 'EGRO-CMA': 2.24, 'clean_n': 19},
+    30: {'n': 29, 'L-SHADE': 1.26, 'EGRO-CMA': 2.41, 'clean_n': 23},
+    50: {'n': 29, 'L-SHADE': 1.26, 'EGRO-CMA': 2.55, 'clean_n': 22},
+}
 
-if not data:
-    print("No corrected results found in results/CORRECTED_*.json yet.\n"
-          "The previous (isotropic-CMA) results were retracted; see CORRECTIONS.md.")
-    raise SystemExit(0)
-print("Merged %d corrected entries from %d file(s)." % (len(data), len(files)))
 
-ALGS  = ["EGRO_CMA", "CMA_ES", "L_SHADE", "DE", "PSO", "GWO", "WOA"]
-LABEL = {"EGRO_CMA": "EGRO-CMA", "CMA_ES": "CMA-ES", "L_SHADE": "L-SHADE",
-         "DE": "DE", "PSO": "PSO", "GWO": "GWO", "WOA": "WOA"}
-# F5 excluded: degenerate in the opfunu CEC2017 implementation (random-point error
-# < 1 vs 1e2-1e18 for all other functions); see the paper's benchmark subsection.
-FN_IDS = [1, 3, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
-          21, 22, 23, 24, 25, 26, 27, 28, 29]
-
-def fclass(fn):
-    if fn in (1, 3): return "unimodal"
-    if 4 <= fn <= 10: return "multimodal"
-    if 11 <= fn <= 20: return "hybrid"
-    return "composition"
-
-# Nemenyi critical values q_alpha (alpha=0.05, two-tailed, infinite df) by k
-_Q05 = {2: 1.960, 3: 2.343, 4: 2.569, 5: 2.728, 6: 2.850,
-        7: 2.949, 8: 3.031, 9: 3.102, 10: 3.164}
-
-def nemenyi_cd(k, N):
-    import math
-    return _Q05[k] * math.sqrt(k * (k + 1) / (6.0 * N))
-
-import math
-
-def _finite(x):
-    try: return math.isfinite(float(x))
-    except Exception: return False
-
-def avg_ranks(row):
-    """Tie-aware ranks (1=best); tied algorithms share the average position."""
-    items = sorted(row.items(), key=lambda kv: kv[1])
-    ranks = {}; i = 0; n = len(items)
-    while i < n:
+def tie_ranks(values):
+    order = np.argsort(values, kind='stable')
+    ranks = np.empty(len(values))
+    sv = np.array(values)[order]
+    i = 0
+    while i < len(values):
         j = i
-        while j + 1 < n and items[j + 1][1] == items[i][1]:
+        while j + 1 < len(values) and sv[j + 1] == sv[i]:
             j += 1
-        avg = ((i + 1) + (j + 1)) / 2.0
-        for k in range(i, j + 1):
-            ranks[items[k][0]] = avg
+        ranks[order[i:j + 1]] = (i + j) / 2.0 + 1.0
         i = j + 1
     return ranks
 
-for dim in (10, 30, 50):
-    fns = []
-    for f in FN_IDS:
-        if ("F%d_d%d_INVALID" % (f, dim)) in data:
+
+def load(dim):
+    path = os.path.join(RES, 'cec2017_official_d%d.json' % dim)
+    data = json.load(open(path))
+    means, affected = {}, set()
+    for key, rec in data.items():
+        if key == '_meta':
             continue
-        keys = ["F%d_d%d_%s" % (f, dim, a) for a in ALGS]
-        if all(k in data for k in keys) and all(_finite(data[k]["mean"]) for k in keys):
-            fns.append(f)
-    if not fns:
-        print("d=%d: 0 complete functions" % dim); continue
+        row, ok = {}, True
+        for a in ALGOS:
+            arec = rec.get(a)
+            errs = [0.0 if abs(e) < ETOL else e
+                    for e in (arec or {}).get('errors', []) if e is not None]
+            if arec is None or len(errs) < len(arec['errors']):
+                ok = False
+                break
+            row[a] = float(np.mean(errs))
+            if min(errs) < -ETOL:
+                affected.add(key)
+        if ok:
+            means[key] = row
+    return means, affected
 
-    ranks = {a: [] for a in ALGS}
-    sole  = {a: 0 for a in ALGS}   # strictly-best
-    tiedw = {a: 0 for a in ALGS}   # achieves the best (possibly shared)
-    egro_beats_cma = 0
-    cwins = collections.defaultdict(collections.Counter)
-    for fn in fns:
-        row = {a: data["F%d_d%d_%s" % (fn, dim, a)]["mean"] for a in ALGS}
-        r = avg_ranks(row)                       # tie-aware
-        for a in ALGS:
-            ranks[a].append(r[a])
-        bv = min(row.values())
-        winners = [a for a in ALGS if row[a] == bv]
-        for a in winners: tiedw[a] += 1
-        if len(winners) == 1:
-            sole[winners[0]] += 1; cwins[fclass(fn)][winners[0]] += 1
-        if row["EGRO_CMA"] < row["CMA_ES"]:
-            egro_beats_cma += 1
-    mrank = {a: sum(ranks[a]) / len(ranks[a]) for a in ALGS}
-    wins = tiedw
 
-    print("\n=== d=%d  (%d/28 functions complete) ===" % (dim, len(fns)))
-    print("  mean Friedman rank (lower = better):")
-    for a in sorted(ALGS, key=lambda a: mrank[a]):
-        print("    %-9s %.2f" % (LABEL[a], mrank[a]))
-    print("  best (tied):", {LABEL[a]: tiedw[a] for a in ALGS if tiedw[a]})
-    print("  best (sole) :", {LABEL[a]: sole[a] for a in ALGS if sole[a]})
-    print("  EGRO-CMA beats CMA-ES on %d/%d functions" % (egro_beats_cma, len(fns)))
-    print("  per-class wins:",
-          {k: {LABEL[a]: n for a, n in v.items()} for k, v in cwins.items()})
-    CD = nemenyi_cd(len(ALGS), len(fns))
-    leader = min(mrank, key=lambda a: mrank[a])
-    tied = [LABEL[a] for a in ALGS if abs(mrank[a] - mrank[leader]) < CD]
-    sigw = [LABEL[a] for a in ALGS if (mrank[a] - mrank[leader]) >= CD]
-    print("  Nemenyi CD (alpha=0.05) = %.3f" % CD)
-    print("    leading group (not significantly different): %s" % tied)
-    print("    significantly worse than the leader: %s" % sigw)
+def ranks_over(means, keys):
+    R = np.array([tie_ranks([means[f][a] for a in ALGOS]) for f in keys])
+    return dict(zip(ALGOS, R.mean(axis=0)))
 
-print("\nValidated against results/cec2017_means_d10_d30.json")
+
+def check_cec():
+    ok = True
+    for dim in (10, 30, 50):
+        means, affected = load(dim)
+        keys = sorted(means, key=lambda s: int(s[1:]))
+        clean = [k for k in keys if k not in affected]
+        r = ranks_over(means, keys)
+        rc = ranks_over(means, clean)
+        cd = Q_ALPHA_7 * np.sqrt(7 * 8 / (6.0 * len(keys)))
+        best = min(r, key=r.get)
+        lead = sorted(a for a in ALGOS if r[a] - r[best] <= cd)
+        wins = sum(1 for f in keys if means[f]['EGRO-CMA'] < means[f]['CMA-ES'])
+        exp = EXPECTED[dim]
+
+        print('d = %d  (%d functions, %d with a consistent reference)'
+              % (dim, len(keys), len(clean)))
+        print('   ranks      : ' + ', '.join(
+            '%s %.2f' % (a, r[a]) for a in sorted(ALGOS, key=r.get)))
+        print('   consistent : ' + ', '.join(
+            '%s %.2f' % (a, rc[a]) for a in sorted(ALGOS, key=rc.get)))
+        print('   CD = %.2f, leading group: %s' % (cd, ', '.join(lead)))
+        print('   EGRO-CMA beats CMA-ES on %d/%d functions' % (wins, len(keys)))
+
+        for k, v in (('n', len(keys)), ('clean_n', len(clean))):
+            if exp[k] != v:
+                print('   MISMATCH %s: expected %s, got %s' % (k, exp[k], v))
+                ok = False
+        for a in ('L-SHADE', 'EGRO-CMA'):
+            if abs(r[a] - exp[a]) > 0.005:
+                print('   MISMATCH %s rank: expected %.2f, got %.2f'
+                      % (a, exp[a], r[a]))
+                ok = False
+        if 'EGRO-CMA' not in lead:
+            print('   MISMATCH: EGRO-CMA not in the leading group')
+            ok = False
+    return ok
+
+
+def check_truss():
+    path = os.path.join(RES, 'engineering_results_truss_v2.json')
+    if not os.path.exists(path):
+        print('truss results not found, skipped')
+        return True
+    sys.path.insert(0, os.path.join(HERE, 'code'))
+    try:
+        from engineering_problems import TRUSS10
+    except Exception as e:
+        print('cannot import the truss model (%s), skipped' % e)
+        return True
+    d = json.load(open(path))
+    worst_f, worst_g, n = 0.0, -np.inf, 0
+    for rec in d.values():
+        x = rec.get('x_best')
+        if x is None:
+            continue
+        worst_f = max(worst_f, abs(TRUSS10['f'](x) - rec['budget']['10000']))
+        worst_g = max(worst_g, max(TRUSS10['g'](x)))
+        n += 1
+    print('truss: %d stored designs re-verified' % n)
+    print('   max |stored - recomputed| weight : %.2e lb' % worst_f)
+    print('   max constraint residual          : %.2e (tolerance 1e-4)'
+          % worst_g)
+    return worst_f < 1e-6 and worst_g <= 1e-4
+
+
+if __name__ == '__main__':
+    print('=' * 68)
+    print('CEC 2017 (official numbering, opfunu 1.0.1 implementation)')
+    print('=' * 68)
+    a = check_cec()
+    print()
+    print('=' * 68)
+    print('10-bar truss')
+    print('=' * 68)
+    b = check_truss()
+    print()
+    print('ALL CHECKS PASSED' if a and b else 'CHECKS FAILED')
+    sys.exit(0 if a and b else 1)

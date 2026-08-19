@@ -40,6 +40,7 @@ OFFICIAL_FNS = [1] + list(range(3, 31))          # 29 functions
 ALGOS = ['EGRO-CMA', 'CMA-ES', 'L-SHADE', 'DE', 'PSO', 'GWO', 'WOA']
 N_RUNS = 30
 OUT_TPL = 'cec2017_official_d%d.json'
+SMOKE_TPL = 'SMOKE_cec2017_official_d%d.json'
 META = {
     'numbering': 'official CEC2017 (F1, F3-F30)',
     'mapping': 'official F1 -> opfunu F12017; official Fk -> opfunu F(k-1)2017 for k>=3',
@@ -81,6 +82,27 @@ def one_run(task):
             f'{type(e).__name__}: {e}', None
 
 
+def _env_meta():
+    """Environment fingerprint stored alongside the results."""
+    import platform
+    import subprocess
+    meta = {'python': platform.python_version(),
+            'platform': platform.platform()}
+    for mod in ('numpy', 'scipy', 'opfunu', 'cma'):
+        try:
+            meta[mod] = __import__(mod).__version__
+        except Exception:
+            meta[mod] = 'unavailable'
+    try:
+        meta['commit'] = subprocess.check_output(
+            ['git', 'rev-parse', '--short', 'HEAD'],
+            cwd=os.path.dirname(os.path.abspath(__file__)),
+            stderr=subprocess.DEVNULL).decode().strip()
+    except Exception:
+        meta['commit'] = 'unknown'
+    return meta
+
+
 def load_ckpt(path):
     if os.path.exists(path):
         with open(path) as fh:
@@ -95,10 +117,12 @@ def save_ckpt(path, data):
     os.replace(tmp, path)
 
 
-def run_dim(dim, fns, algos, n_runs, budget, workers, outdir):
-    out = os.path.join(outdir, OUT_TPL % dim)
+def run_dim(dim, fns, algos, n_runs, budget, workers, outdir,
+            smoke=False):
+    out = os.path.join(outdir, (SMOKE_TPL if smoke else OUT_TPL) % dim)
     data = load_ckpt(out)
-    data['_meta'].update(dim=dim, budget_evals=budget, n_runs=n_runs)
+    data['_meta'].update(dim=dim, budget_evals=budget, n_runs=n_runs,
+                         environment=_env_meta())
 
     tasks = []
     for fid in fns:
@@ -180,7 +204,7 @@ def main():
     if args.smoke:
         print('SMOKE MODE', flush=True)
         run_dim(10, [1, 30], ['EGRO-CMA', 'PSO'], 2, 2000,
-                min(args.workers, 4), args.outdir)
+                min(args.workers, 4), args.outdir, smoke=True)
         return
 
     fns = args.fns or OFFICIAL_FNS
