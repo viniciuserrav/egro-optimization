@@ -69,19 +69,6 @@ def cd_diagram(mean_ranks, cd, path):
     import matplotlib.pyplot as plt
     order = sorted(mean_ranks, key=mean_ranks.get)
     k = len(order)
-    fig, ax = plt.subplots(figsize=(9.0, 2.6))
-    lo, hi = 1, k
-    ax.set_xlim(lo - 0.3, hi + 0.3)
-    ax.set_ylim(0, 10)
-    ax.spines[['left', 'right', 'bottom']].set_visible(False)
-    ax.get_yaxis().set_visible(False)
-    ax.xaxis.set_ticks(range(lo, hi + 1))
-    ax.xaxis.tick_top()
-    ax.plot([lo, hi], [9, 9], color='none')          # anchor axis at top
-
-    # CD ruler
-    ax.plot([lo, lo + cd], [9.6, 9.6], lw=3, color='k', clip_on=False)
-    ax.text(lo + cd / 2, 9.9, 'CD = %.2f' % cd, ha='center', va='bottom')
 
     # group bars: maximal cliques of consecutive algorithms within CD
     groups = []
@@ -97,8 +84,27 @@ def cd_diagram(mean_ranks, cd, path):
     groups = [g for g in groups
               if not any(o[0] <= g[0] and g[1] <= o[1] and o != g
                          for o in groups)]
+    ng = max(len(groups), 1)
+
+    bar_top, bar_step = 8.7, 0.5
+    bar_bottom = bar_top - bar_step * (ng - 1)
+    stem_y = bar_bottom - 0.5                 # where stems bend outward
+    fig, ax = plt.subplots(figsize=(9.0, 2.4 + 0.28 * ng))
+    lo, hi = 1, k
+    ax.set_xlim(lo - 0.3, hi + 0.3)
+    ax.set_ylim(stem_y - 1.6 * ((k + 1) // 2), 11.2)
+    ax.spines[['left', 'right', 'bottom']].set_visible(False)
+    ax.get_yaxis().set_visible(False)
+    ax.xaxis.set_ticks(range(lo, hi + 1))
+    ax.xaxis.tick_top()
+    ax.plot([lo, hi], [9.4, 9.4], color='none')      # anchor axis at top
+
+    # CD ruler, well above the tick labels
+    ax.plot([lo, lo + cd], [10.55, 10.55], lw=3, color='k', clip_on=False)
+    ax.text(lo + cd / 2, 10.75, 'CD = %.2f' % cd, ha='center', va='bottom')
+
     for gi, (a, b) in enumerate(groups):
-        y = 8.4 - 0.55 * gi
+        y = bar_top - bar_step * gi
         ax.plot([mean_ranks[order[a]] - 0.05, mean_ranks[order[b]] + 0.05],
                 [y, y], lw=4, color='k', solid_capstyle='round')
 
@@ -108,12 +114,12 @@ def cd_diagram(mean_ranks, cd, path):
         r = mean_ranks[name]
         if idx < half:
             xt, ha = lo - 0.35, 'right'
-            yt = 6.4 - 1.5 * idx
+            yt = stem_y - 1.2 - 1.5 * idx
         else:
             xt, ha = hi + 0.35, 'left'
-            yt = 6.4 - 1.5 * (k - 1 - idx)
-        ax.plot([r, r], [7.6, 9.0], lw=0.9, color='k')
-        ax.plot([r, xt + (0.02 if ha == 'left' else -0.02)], [7.6, yt],
+            yt = stem_y - 1.2 - 1.5 * (k - 1 - idx)
+        ax.plot([r, r], [stem_y, 9.4], lw=0.9, color='k')
+        ax.plot([r, xt + (0.02 if ha == 'left' else -0.02)], [stem_y, yt],
                 lw=0.9, color='k')
         ax.text(xt, yt, '%s (%.2f)' % (name, r), ha=ha, va='center')
     fig.tight_layout()
