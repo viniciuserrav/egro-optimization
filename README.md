@@ -23,9 +23,16 @@ statistics.
 
 ```
 pip install setuptools==75.8.0 numpy==2.4.4 scipy==1.17.1 opfunu==1.0.1 cma==4.4.4
-python code/gen_official_tables.py results .   # tables + ranks + CD diagrams from stored results
-python code/engineering_problems.py            # verify the 5 engineering formulations
+python validate.py                             # reproduces every headline number in the paper
+python code/gen_official_tables.py results .   # regenerates tables + CD diagrams
+python code/gen_robustness_table.py results .  # regenerates the robustness table
+python code/engineering_problems.py            # verifies the 5 engineering formulations
 ```
+
+`validate.py` recomputes the Friedman ranks, Nemenyi groups, win tallies and
+the robustness check straight from `results/`, and re-verifies all 210 stored
+truss designs against the finite-element model. It asserts the values printed
+in the paper, so a silent regression fails the run.
 
 Note: `setuptools` is pinned because `opfunu` imports `pkg_resources`, which
 was removed from setuptools >= 81.
@@ -58,6 +65,18 @@ was removed from setuptools >= 81.
   against results produced with the official evaluator should treat these
   functions with caution. Newly generated results store the best decision
   vector per run (`xbest`) to allow external re-evaluation.
+
+The mechanism is documented for reproducibility: `opfunu` sets each declared
+optimum to 100 times its *own* index (hence 100 below the official value from
+official F3 onward), and on the affected functions the declared optimum is not
+the minimum of the coded surface — an independent optimizer reaches −1088.7 on
+official F10 against a declared 900. Because all seven algorithms optimize the
+same surfaces under the same budget, each declared optimum is a per-function
+constant and cannot reorder them; `gen_robustness_table.py` confirms this by
+repeating the ranking over only the functions with a consistent reference (the
+leading order is unchanged at every dimension, and EGRO-CMA improves from 2.24
+to 1.97 at d = 10). Absolute error values are therefore **not** comparable with
+results produced by the competition's reference implementation.
 
 ### Headline results (regenerate with `gen_official_tables.py`)
 
@@ -103,5 +122,4 @@ formulation against its published optimum.
   pre-renumbering campaign (kept for provenance; superseded by the official
   files).
 - `.github/workflows/` — the CI matrices that produced the CEC campaign.
-- `validate.py` — **legacy**: validates the pre-renumbering campaign only;
-  use `code/gen_official_tables.py` for the current results.
+- `validate.py` — one-command reproduction of the paper's headline numbers.
