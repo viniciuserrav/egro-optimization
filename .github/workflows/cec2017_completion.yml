@@ -1,0 +1,49 @@
+name: cec2017_completion
+
+# Completes the one slice that hit the 350-minute timeout in the main run:
+# official F29 at d=50, algorithm group A.  Split into two 2-algorithm jobs
+# so each finishes with a wide margin.
+
+on:
+  workflow_dispatch:
+
+env:
+  PY_DEPS: "setuptools==75.8.0 numpy==2.4.4 scipy==1.17.1 opfunu==1.0.1 cma==4.4.4"
+
+jobs:
+  slice:
+    name: "d50/F29/${{ matrix.part.tag }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        part:
+          - { tag: A1, algos: "EGRO-CMA CMA-ES" }
+          - { tag: A2, algos: "L-SHADE DE" }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install pinned dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install $PY_DEPS
+      - name: Pre-flight import check
+        run: |
+          python -c "from opfunu.cec_based import cec2017; import cma, scipy, numpy; cec2017.F12017(ndim=10); print('env OK')"
+      - name: Run slice
+        env:
+          OMP_NUM_THREADS: '1'
+          OPENBLAS_NUM_THREADS: '1'
+          MKL_NUM_THREADS: '1'
+          PYTHONHASHSEED: '0'
+        run: |
+          mkdir -p out
+          python code/cec2017_official.py --dims 50 --fns 29 \
+              --algos ${{ matrix.part.algos }} --workers 4 --outdir out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cec-d50-F29-${{ matrix.part.tag }}
+          path: out/*.json
