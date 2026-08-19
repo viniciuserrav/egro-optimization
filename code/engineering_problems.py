@@ -190,14 +190,16 @@ def truss10_f(x):
 
 
 def truss10_g(x):
+    # Displacement limits apply to the VERTICAL dof of the four free nodes
+    # (benchmark formulation); horizontal dofs are unconstrained.
     try:
         u, stress = _t10_fe(np.asarray(x, float))
     except np.linalg.LinAlgError:
-        return [1e6] * 18
+        return [1e6] * 14
     if not (np.all(np.isfinite(u)) and np.all(np.isfinite(stress))):
-        return [1e6] * 18
+        return [1e6] * 14
     return ([abs(sg) / _T10_SIG - 1.0 for sg in stress]
-            + [abs(ui) / _T10_DMAX - 1.0 for ui in u])
+            + [abs(u[i]) / _T10_DMAX - 1.0 for i in (1, 3, 5, 7)])
 
 
 TRUSS10 = dict(

@@ -36,27 +36,27 @@
   },
   "mean_ranks": {
    "EGRO-CMA": 2.241,
-   "CMA-ES": 4.185,
-   "L-SHADE": 1.37,
-   "DE": 3.444,
+   "CMA-ES": 4.093,
+   "L-SHADE": 1.5,
+   "DE": 3.407,
    "PSO": 6.167,
    "GWO": 5.519,
    "WOA": 5.074
   },
-  "friedman_chi2": 107.15,
-  "friedman_p": 8.06415068258627e-21,
+  "friedman_chi2": 104.43,
+  "friedman_p": 2.981292009954934e-20,
   "nemenyi_cd": 1.734,
   "sole_wins": {
    "EGRO-CMA": 6,
    "CMA-ES": 0,
-   "L-SHADE": 20,
+   "L-SHADE": 16,
    "DE": 0,
    "PSO": 0,
    "GWO": 0,
    "WOA": 1
   },
-  "egro_vs_cma_wins": 25,
-  "egro_vs_cma_ties": 0
+  "egro_vs_cma_wins": 24,
+  "egro_vs_cma_ties": 1
  },
  "d30": {
   "n_functions": 29,
@@ -93,28 +93,28 @@
   ],
   "dropped": {},
   "mean_ranks": {
-   "EGRO-CMA": 2.448,
-   "CMA-ES": 2.69,
-   "L-SHADE": 1.207,
+   "EGRO-CMA": 2.414,
+   "CMA-ES": 2.672,
+   "L-SHADE": 1.259,
    "DE": 5.31,
    "PSO": 6.31,
    "GWO": 5.345,
    "WOA": 4.69
   },
-  "friedman_chi2": 132.15,
-  "friedman_p": 4.5357280309579726e-26,
+  "friedman_chi2": 131.73,
+  "friedman_p": 5.556124604505228e-26,
   "nemenyi_cd": 1.673,
   "sole_wins": {
    "EGRO-CMA": 5,
    "CMA-ES": 0,
-   "L-SHADE": 24,
+   "L-SHADE": 22,
    "DE": 0,
    "PSO": 0,
    "GWO": 0,
    "WOA": 0
   },
   "egro_vs_cma_wins": 15,
-  "egro_vs_cma_ties": 0
+  "egro_vs_cma_ties": 1
  },
  "d50": {
   "n_functions": 29,
@@ -152,20 +152,20 @@
   "dropped": {},
   "mean_ranks": {
    "EGRO-CMA": 2.552,
-   "CMA-ES": 2.517,
-   "L-SHADE": 1.207,
+   "CMA-ES": 2.466,
+   "L-SHADE": 1.259,
    "DE": 5.724,
    "PSO": 6.276,
    "GWO": 5.103,
    "WOA": 4.621
   },
-  "friedman_chi2": 135.8,
-  "friedman_p": 7.714718077920359e-27,
+  "friedman_chi2": 135.24,
+  "friedman_p": 1.0121295407657322e-26,
   "nemenyi_cd": 1.673,
   "sole_wins": {
    "EGRO-CMA": 4,
    "CMA-ES": 1,
-   "L-SHADE": 24,
+   "L-SHADE": 21,
    "DE": 0,
    "PSO": 0,
    "GWO": 0,

@@ -24,6 +24,7 @@ import numpy as np
 ALGOS = ['EGRO-CMA', 'CMA-ES', 'L-SHADE', 'DE', 'PSO', 'GWO', 'WOA']
 DIMS = [10, 30, 50]
 Q_ALPHA_7 = 2.949                      # Nemenyi q_0.05 for k = 7 (Demsar 2006)
+ETOL = 1e-8                            # CEC convention: |error| < 1e-8 -> 0
 
 
 def fmt(v):
@@ -147,7 +148,8 @@ def main():
             ok, m = True, {}
             for a in ALGOS:
                 rec = data.get(key, {}).get(a)
-                errs = [e for e in (rec or {}).get('errors', []) if e is not None]
+                errs = [0.0 if abs(e) < ETOL else e
+                        for e in (rec or {}).get('errors', []) if e is not None]
                 if rec is None or len(errs) < len(rec['errors']):
                     flags = {f for f in (rec or {}).get('flags', []) if f}
                     dropped[key] = ('incomplete' if not flags
