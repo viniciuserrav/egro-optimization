@@ -1,93 +1,107 @@
 # EGRO — Echo-Guided Rescue Optimization
 
-Reproducibility package for the paper *"Echo-Guided Rescue Optimization: a modular
-gradient-metaheuristic framework inspired by mountain rescue operations."*
+Reproducibility package for the paper *"Echo-Guided Rescue Optimization: a
+gradient-guided hybrid framework for engineering design optimization."*
 
-EGRO couples L-BFGS-B gradient descent with an interchangeable population-based
-inner search. Gradient "skiers" descend to promising basins, and around each
-landing an isolated rescue group searches a region whose geometry is dictated by
-the descent trajectory itself; a dimension-invariant isolation index then decides
-whether a group has converged or has discovered a new region worth a fresh
+EGRO couples L-BFGS-B gradient descent with a population-based inner search
+(instantiated with PSO and CMA-ES). Gradient "skiers" descend to promising
+basins, and around each landing an isolated rescue group searches a region
+whose geometry follows from the descent trajectory; a dimension-normalized
+isolation index then decides whether a group has converged or has moved beyond
+the landing-reference level, in which case its best position seeds a fresh
 descent. Two instantiations are provided:
 
 - **EGRO-PSO** — Clerc–Kennedy particle swarm as the inner search;
-- **EGRO-CMA** — CMA-ES whose initial covariance is *echo-shaped*, aligning its
-  principal search axis with the gradient (echo) direction.
+- **EGRO-CMA** — CMA-ES whose initial covariance is *echo-shaped*, aligning
+  its principal search axis with the gradient (echo) direction.
 
-This repository contains the implementation, the raw per-run results behind every
-table, and a one-command validation script.
+This repository contains the implementation, the raw per-run results behind
+every table in the paper, and the scripts that regenerate the tables and
+statistics.
 
 ## Quick start
 
 ```
-pip install -r requirements.txt    # numpy, scipy, opfunu, cma
-python validate.py                 # reproduces all headline numbers from stored results
+pip install setuptools==75.8.0 numpy==2.4.4 scipy==1.17.1 opfunu==1.0.1 cma==4.4.4
+python code/gen_official_tables.py results .   # tables + ranks + CD diagrams from stored results
+python code/engineering_problems.py            # verify the 5 engineering formulations
 ```
 
-`validate.py` uses only the Python standard library and recomputes — directly
-from `results/` — the tie-aware Friedman ranks, the win tallies, the EGRO-CMA vs
-CMA-ES head-to-head, and the Nemenyi leading/lagging groups.
+Note: `setuptools` is pinned because `opfunu` imports `pkg_resources`, which
+was removed from setuptools >= 81.
 
-## Experimental protocol
+## CEC 2017 campaign (official numbering)
 
-- Benchmark: **CEC 2017** (via `opfunu`), dimensions **d = 10, 30, 50**.
-- 30 independent runs per (function, algorithm); budget **10,000 × d** function
-  evaluations.
-- Competitors: EGRO-CMA, CMA-ES, L-SHADE, DE, PSO, GWO, WOA.
-- **F2 and F5 are excluded** as degenerate in the opfunu CEC 2017 implementation:
-  their error at random points is below 1, versus 1e2–1e18 for every other
-  function, so all algorithms solve them trivially.
+- Benchmark: the **29 official CEC 2017 functions F1, F3–F30** via `opfunu`
+  1.0.1, at dimensions **d = 10, 30, 50**. `opfunu` renumbers the surviving
+  functions consecutively (its `F22017` is the official F3), so
+  `code/cec2017_official.py` maps official function *k* to `opfunu` index
+  *k−1* for *k* ≥ 3. All indices in `results/cec2017_official_d*.json` and in
+  the paper are **official**.
+- 30 runs per (function, algorithm), seed = run index; budget **10,000 × d**
+  evaluations, counted by a shared wrapper (finite-difference gradient calls
+  included).
+- Competitors: EGRO-CMA, CMA-ES, L-SHADE, DE, PSO, GWO, WOA. The five
+  non-library competitors are study-specific implementations written from the
+  original publications.
+- Absolute errors below 1e-8 are treated as zero before averaging and ranking
+  (CEC convention).
 
-## Headline results (reproduced by `validate.py`)
+**Known defects of the `opfunu` 1.0.1 instances, disclosed in the paper:**
 
-Mean Friedman rank (lower is better):
+- official **F18 and F30 return non-finite values at d = 10** and are excluded
+  at that dimension (27 valid functions there);
+- for a subset of functions (official F10, F12, F16, F17, F20, F22, F26, F27
+  at d = 10, similar subsets at d = 30/50) the stated reference optimum lies
+  **above** the attainable minimum, so signed errors can be negative. Rankings
+  are unaffected (the reference is a per-function constant), but comparisons
+  against results produced with the official evaluator should treat these
+  functions with caution. Newly generated results store the best decision
+  vector per run (`xbest`) to allow external re-evaluation.
 
-| algorithm | d = 10 (25 fns) | d = 30 (27 fns) | d = 50 (27 fns) |
+### Headline results (regenerate with `gen_official_tables.py`)
+
+Mean tie-aware Friedman rank (lower is better):
+
+| algorithm | d = 10 (27 fns) | d = 30 (29 fns) | d = 50 (29 fns) |
 |---|:---:|:---:|:---:|
-| L-SHADE      | 1.60 | 1.28 | 1.30 |
-| **EGRO-CMA** | **2.02** | **2.43** | **2.44** |
-| CMA-ES       | 4.20 | 2.67 | 2.44 |
-| DE           | 3.24 | 5.19 | 5.63 |
-| GWO / WOA / PSO | bottom group | bottom group | bottom group |
+| L-SHADE      | 1.50 | 1.26 | 1.26 |
+| **EGRO-CMA** | **2.24** | **2.41** | **2.55** |
+| CMA-ES       | 4.09 | 2.67 | 2.47 |
+| DE           | 3.41 | 5.31 | 5.72 |
+| WOA          | 5.07 | 4.69 | 4.62 |
+| GWO          | 5.52 | 5.34 | 5.10 |
+| PSO          | 6.17 | 6.31 | 6.28 |
 
-- **d = 10:** Nemenyi leading group = {EGRO-CMA, L-SHADE, DE} (CD = 1.80);
-  EGRO-CMA beats standalone CMA-ES on **23/25** functions.
-- **d = 30 / 50:** leading group = {EGRO-CMA, CMA-ES, L-SHADE}; EGRO-CMA beats
-  CMA-ES on **13/27** and **11/27** (a statistical tie with CMA-ES at d = 50).
-- **Inner-search ablation** (EGRO-CMA vs EGRO-PSO under identical framework
-  settings): **17–5 (3 ties) / 16–9 (2 ties) / 18–7 (2 ties)** at d = 10 / 30 / 50.
+EGRO-CMA is statistically tied with L-SHADE at every dimension
+(Nemenyi, α = 0.05) and beats its own CMA-ES engine on 24/27 functions at
+d = 10 (15/29 at d = 30, 12/29 at d = 50).
 
-## Layout
+## Engineering campaign
 
-```
-validate.py                 one-command reproduction of all headline numbers (stdlib only)
-requirements.txt            numpy, scipy, opfunu, cma
-code/
-  egro_cma_competition.py   main competition: all 7 algorithms on CEC 2017, identical FE counting
-  egro_pso_vs_cmaes.py      inner-search ablation: EGRO-PSO vs EGRO-CMA, identical framework settings
-  consolidate_all.py        analysis: Friedman ranks, Nemenyi groups, ablation, for d = 10/30/50
-results/
-  CORRECTED_main_LAB_complete.json      raw per-run results, 7 algorithms across dimensions
-  CORRECTED_LAB_ablation_complete.json  EGRO-PSO vs EGRO-CMA ablation
-  CORRECTED_table_cec2017_d{10,30,50}.tex   the exact LaTeX tables used in the paper
-```
+Five constrained problems in `code/engineering_problems.py` (spring, pressure
+vessel, welded beam, speed reducer, and the **10-bar truss**, which assembles
+and solves K·u = F per evaluation; vertical displacement limits at the four
+free nodes, per the benchmark formulation). `verify_all()` checks each
+formulation against its published optimum.
 
-## Re-run from scratch
+- `code/run_engineering.py` — full 5-problem campaign (30 seeds, budget
+  snapshots, best-feasible tracking at 1e-4 tolerance).
+- `code/truss_campaign_v2.py` — the truss campaign reported in the paper;
+  stores the best design vector and its constraint residual per run
+  (`results/engineering_results_truss_v2.json`).
+- `code/gen_truss_table.py` — regenerates the paper's truss table.
 
-Recompute one function across all seven algorithms (the paper's full 10⁴·d budget;
-`--max-fes` is the per-dimension base, so the total budget is `max_fes × dim`):
+## Repository layout
 
-```
-cd code
-python egro_cma_competition.py --dim 10 --fns 9 --n-runs 30 --max-fes 10000 --out check.json
-```
-
-then compare `F9_d10_EGRO_CMA` against the six competitors in `check.json`.
-
-## Key parameters (as in the paper)
-
-- Framework: `α_in = 0.76`, `σ_dist = 1.5`, `n_p = 15`, `T_diag = 60`,
-  `n_skiers = 5`, `N_spawn = 20`, `β_r = 0.5`.
-- EGRO-PSO inner search: Clerc–Kennedy `w = 0.729`, `c1 = c2 = 1.494`.
-- EGRO-CMA inner search: echo-shaped initial covariance
-  `C0 = (σ_long² d̂d̂ᵀ + σ_short²(I − d̂d̂ᵀ)) / λ̄`, step `σ0 = σ_dist·σ_long/√d`.
+- `code/` — algorithms (`egro_cma_competition.py`, `egro_pso_vs_cmaes.py`),
+  campaign runners, and analysis scripts (`gen_official_tables.py`,
+  `merge_official.py`, `analyze_cec2011.py`).
+- `results/` — raw per-run results: `cec2017_official_d{10,30,50}.json`,
+  `official_stats.json`, `cec2011_results.json`,
+  `engineering_results_truss_v2.json`, plus legacy files from the earlier
+  pre-renumbering campaign (kept for provenance; superseded by the official
+  files).
+- `.github/workflows/` — the CI matrices that produced the CEC campaign.
+- `validate.py` — **legacy**: validates the pre-renumbering campaign only;
+  use `code/gen_official_tables.py` for the current results.

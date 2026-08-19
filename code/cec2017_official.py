@@ -68,13 +68,17 @@ def one_run(task):
     try:
         bm = base.load_bm(official_to_opfunu(fid), dim)
         opt = make_algo(algo, bm['func'], bm['lb'], bm['ub'], dim, budget, run)
-        _, fbest = opt.optimize()
+        xbest, fbest = opt.optimize()
         err = float(fbest) - bm['f_global']
+        xb = [float(v) for v in np.asarray(xbest).ravel()]
         if not np.isfinite(err):
-            return fid, algo, run, None, int(opt.eval_count), time.time() - t0, 'non-finite'
-        return fid, algo, run, float(err), int(opt.eval_count), time.time() - t0, None
+            return (fid, algo, run, None, int(opt.eval_count),
+                    time.time() - t0, 'non-finite', xb)
+        return (fid, algo, run, float(err), int(opt.eval_count),
+                time.time() - t0, None, xb)
     except Exception as e:                       # record, never kill the pool
-        return fid, algo, run, None, 0, time.time() - t0, f'{type(e).__name__}: {e}'
+        return fid, algo, run, None, 0, time.time() - t0, \
+            f'{type(e).__name__}: {e}', None
 
 
 def load_ckpt(path):
@@ -103,11 +107,13 @@ def run_dim(dim, fns, algos, n_runs, budget, workers, outdir):
         for algo in algos:
             arec = rec.setdefault(algo, {'errors': [None] * n_runs,
                                          'evals': [None] * n_runs,
-                                         'flags': [None] * n_runs})
-            # pad if a previous smoke run used fewer runs
-            for fld, filler in (('errors', None), ('evals', None), ('flags', None)):
+                                         'flags': [None] * n_runs,
+                                         'xbest': [None] * n_runs})
+            # pad if a previous smoke run used fewer runs (or older schema)
+            arec.setdefault('xbest', [None] * n_runs)
+            for fld in ('errors', 'evals', 'flags', 'xbest'):
                 while len(arec[fld]) < n_runs:
-                    arec[fld].append(filler)
+                    arec[fld].append(None)
             for run in range(n_runs):
                 done = (arec['errors'][run] is not None
                         or arec['flags'][run] is not None)
@@ -122,12 +128,13 @@ def run_dim(dim, fns, algos, n_runs, budget, workers, outdir):
 
     t0, done_now = time.time(), 0
     with mp.Pool(workers) as pool:
-        for fid, algo, run, err, evals, secs, flag in \
+        for fid, algo, run, err, evals, secs, flag, xb in \
                 pool.imap_unordered(one_run, tasks, chunksize=1):
             rec = data['F%d' % fid][algo]
             rec['errors'][run] = err
             rec['evals'][run] = evals
             rec['flags'][run] = flag
+            rec['xbest'][run] = xb
             done_now += 1
             save_ckpt(out, data)
             if done_now % 10 == 0 or done_now == len(tasks):

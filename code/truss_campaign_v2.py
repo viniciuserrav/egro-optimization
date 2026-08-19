@@ -34,6 +34,7 @@ class Penalized:
         self.lb = TRUSS10['lb']
         self.span = TRUSS10['ub'] - TRUSS10['lb']
         self.best_feas, self.n = np.inf, 0
+        self.best_x, self.best_gmax = None, None
         self.snap = {b: None for b in BUDGETS}
 
     def __call__(self, u):
@@ -41,8 +42,11 @@ class Penalized:
         f = float(TRUSS10['f'](x))
         gs = TRUSS10['g'](x)
         self.n += 1
-        if max(gs) <= FEAS_TOL and f < self.best_feas:
+        gmax = max(gs)
+        if gmax <= FEAS_TOL and f < self.best_feas:
             self.best_feas = f
+            self.best_x = [float(v) for v in x]
+            self.best_gmax = float(gmax)
         for b in BUDGETS:
             if self.snap[b] is None and self.n >= b:
                 self.snap[b] = (None if not np.isfinite(self.best_feas)
@@ -68,7 +72,8 @@ for name, mk in ALGOS.items():
         pen = Penalized()
         mk(pen, s).optimize()
         res[key] = {'algo': name, 'run': s, 'budget': pen.final(),
-                    'evals': pen.n}
+                    'evals': pen.n, 'x_best': pen.best_x,
+                    'gmax_at_best': pen.best_gmax}
         with open(OUT, 'w') as fh:
             json.dump(res, fh)
     v = [res['%s||%d' % (name, s)]['budget']['10000'] for s in range(N_SEEDS)]

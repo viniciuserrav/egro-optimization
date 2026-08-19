@@ -4,11 +4,14 @@ import json
 
 import numpy as np
 
-SRC = (r"c:\Vinicius\Papers\EGRO - Metaeuristc\paper_artifacts\results"
-       r"\engineering_results_truss_v2.json")
-OUT = (r"c:\Vinicius\Papers\EGRO - Metaeuristc"
-       r"\Submission_Advances_in_Engineering_Software\image_latex"
-       r"\table_truss10.tex")
+import os
+
+_HERE = os.path.dirname(os.path.abspath(__file__))
+SRC = os.environ.get(
+    "TRUSS_RESULTS",
+    os.path.join(_HERE, "..", "results", "engineering_results_truss_v2.json"))
+OUT = os.environ.get("TRUSS_TABLE_OUT",
+                     os.path.join(_HERE, "table_truss10.tex"))
 
 d = json.load(open(SRC))
 ALGOS = ['EGRO-CMA', 'CMA-ES', 'L-SHADE', 'DE', 'PSO', 'GWO', 'WOA']

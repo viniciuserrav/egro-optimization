@@ -43,6 +43,9 @@ def main():
                         tgt['errors'][i] = arec['errors'][i]
                         tgt['evals'][i] = arec['evals'][i]
                         tgt['flags'][i] = arec['flags'][i]
+                        if 'xbest' in arec:
+                            tgt.setdefault('xbest', [None] * len(arec['errors']))
+                            tgt['xbest'][i] = arec['xbest'][i]
 
     for dim in sorted(merged):
         d = merged[dim]
